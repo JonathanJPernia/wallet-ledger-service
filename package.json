@@ -8,9 +8,6 @@
   "scripts": {
     "clean": "rm -rf dist tsconfig.build.tsbuildinfo",
     "build": "npm run clean && prisma generate && nest build",
-    "prestart": "npm run build",
-    "prestart:dev": "npm run build",
-    "prestart:debug": "npm run build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"prisma/**/*.prisma\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"prisma/**/*.prisma\"",
     "start": "nest start",

@@ -7,11 +7,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { DomainException } from '../errors/domain.exception';
 
 interface ErrorResponseBody {
   statusCode: number;
   message: string | string[];
   error: string;
+  errorCode?: string;
   path: string;
   timestamp: string;
   requestId?: string;
@@ -38,6 +40,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const message = this.extractMessage(exceptionResponse);
     const error = this.extractErrorName(exception, status);
+    const errorCode =
+      exception instanceof DomainException
+        ? exception.errorCode
+        : this.extractErrorCode(exceptionResponse);
     const requestId = request.headers['x-request-id'] as string | undefined;
 
     const body: ErrorResponseBody = {
@@ -46,6 +52,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       error,
       path: request.url,
       timestamp: new Date().toISOString(),
+      ...(errorCode && { errorCode }),
       ...(requestId && { requestId }),
     };
 
@@ -94,5 +101,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return exception.name;
     }
     return HttpStatus[status] ?? 'Error';
+  }
+
+  private extractErrorCode(
+    exceptionResponse: string | object,
+  ): string | undefined {
+    if (
+      typeof exceptionResponse === 'object' &&
+      exceptionResponse !== null &&
+      'errorCode' in exceptionResponse
+    ) {
+      return (exceptionResponse as { errorCode: string }).errorCode;
+    }
+    return undefined;
   }
 }

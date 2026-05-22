@@ -7,19 +7,100 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------------------
+// Wallet — agregado de saldo con optimistic locking (version)
+// ---------------------------------------------------------------------------
 model Wallet {
-  id             String  @id @default(uuid())
-  currentBalance Decimal @default(0) @db.Decimal(18, 2)
-  version        Int     @default(1)
+  id             String       @id @default(uuid())
+  /// Proyección; fuente de verdad = ledger. CHECK >= 0 en DB (migración).
+  currentBalance Decimal      @default(0) @db.Decimal(18, 2)
+  currency       String       @default("USD") @db.Char(3)
+  status         WalletStatus @default(ACTIVE)
+  version        Int          @default(1)
 
   ledgerEntries LedgerEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([status])
+  @@index([currency])
   @@map("wallets")
 }
 
+// ---------------------------------------------------------------------------
+// TransactionGroup — una operación lógica (ej. transfer = OUT + IN)
+// ---------------------------------------------------------------------------
+model TransactionGroup {
+  id     String                 @id @default(uuid())
+  type   TransactionGroupType
+  status TransactionGroupStatus @default(PENDING)
+
+  description       String?
+  businessReference String?
+  correlationId     String?
+  initiatedBy       String?
+  metadata          Json?
+
+  ledgerEntries  LedgerEntry[]
+  idempotencyKey IdempotencyKey?
+
+  completedAt   DateTime?
+  failedAt      DateTime?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([correlationId])
+  @@index([businessReference])
+  @@index([initiatedBy])
+  @@index([createdAt])
+  @@map("transaction_groups")
+}
+
+// ---------------------------------------------------------------------------
+// IdempotencyKey — retries seguros (header Idempotency-Key)
+// ---------------------------------------------------------------------------
+model IdempotencyKey {
+  id String @id @default(uuid())
+
+  key   String
+  scope String @default("default")
+
+  status IdempotencyStatus @default(PROCESSING)
+
+  requestMethod String?
+  requestPath   String?
+  requestHash   String?
+
+  responseStatus Int?
+  responseBody   Json?
+
+  /// Auditoría cuando requestHash no coincide (TX independiente).
+  mismatchAudit Json? @map("mismatch_audit")
+
+  transactionGroupId String?           @unique
+  transactionGroup TransactionGroup? @relation(fields: [transactionGroupId], references: [id])
+
+  expiresAt DateTime?
+  failureReason String?
+  failedAt      DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([scope, key])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+// ---------------------------------------------------------------------------
+// LedgerEntry — fuente de verdad del ledger (append-only, auditable)
+// amount SIEMPRE positivo; el signo lo define operationType
+// ---------------------------------------------------------------------------
 model LedgerEntry {
   id String @id @default(uuid())
 
@@ -27,19 +108,34 @@ model LedgerEntry {
   wallet   Wallet @relation(fields: [walletId], references: [id])
 
   operationType OperationType
+  currency      String        @db.Char(3)
 
-  amount Decimal @db.Decimal(18, 2)
-
+  /// Siempre > 0. DEBIT/CREDIT semántico vía operationType, nunca signo en amount.
+  amount        Decimal @db.Decimal(18, 2)
   balanceBefore Decimal @db.Decimal(18, 2)
   balanceAfter  Decimal @db.Decimal(18, 2)
 
-  referenceId String?
+  transactionGroupId String?
+  transactionGroup   TransactionGroup? @relation(fields: [transactionGroupId], references: [id])
+
+  referenceId   String?
+  correlationId String?
 
   createdAt DateTime @default(now())
 
   @@index([walletId])
+  @@index([transactionGroupId])
+  @@index([operationType])
+  @@index([currency])
   @@index([referenceId])
+  @@index([createdAt])
   @@map("ledger_entries")
+}
+
+enum WalletStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
 }
 
 enum OperationType {
@@ -47,4 +143,24 @@ enum OperationType {
   WITHDRAW
   TRANSFER_IN
   TRANSFER_OUT
+}
+
+enum TransactionGroupType {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum TransactionGroupStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum IdempotencyStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
 }
