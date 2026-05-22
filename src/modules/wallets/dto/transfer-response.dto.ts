@@ -11,14 +11,26 @@ export class TransferResponseDto {
   @ApiProperty()
   toWalletId: string;
 
-  @ApiProperty({ example: '50.00' })
+  @ApiProperty({ example: '50.00', description: 'Base transfer amount (excludes fee)' })
   amount: string;
+
+  @ApiProperty({ example: '50.00', description: 'Same as amount' })
+  baseAmount: string;
+
+  @ApiProperty({ example: '0.25' })
+  feeAmount: string;
+
+  @ApiProperty({ example: '50.25', description: 'Total debited from sender (base + fee)' })
+  totalDeducted: string;
 
   @ApiProperty({ example: '200.00' })
   fromBalanceBefore: string;
 
-  @ApiProperty({ example: '150.00' })
+  @ApiProperty({ example: '149.75' })
   fromBalanceAfter: string;
+
+  @ApiProperty({ example: '0.25', required: false })
+  systemFeeWalletBalanceAfter?: string;
 
   @ApiProperty({ example: '0.00' })
   toBalanceBefore: string;

@@ -14,10 +14,12 @@ import {
   type IdempotencyClaimInput,
   type IdempotencyClaimResult,
 } from '../../../common/database/idempotency-lock';
+import { safeCommittedIdempotencyWhere } from '../../../common/database/idempotency-replay';
 import {
   retrySerializable,
   SERIALIZABLE_TRANSACTION_OPTIONS,
 } from '../../../common/database/serializable-transaction';
+import { LockResolverService } from '../../../common/database/lock-resolver.service';
 import {
   lockWalletsForUpdateInOrder,
   type LockedWalletRow,
@@ -57,7 +59,10 @@ export type TransferRepositoryLogContext = {
 export class TransferRepository {
   private readonly logger = new Logger(TransferRepository.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly lockResolver: LockResolverService,
+  ) {}
 
   async findSafeCommittedReplay(
     scope: string,
@@ -65,18 +70,11 @@ export class TransferRepository {
     logContext?: TransferRepositoryLogContext,
   ): Promise<IdempotencyKey | null> {
     const record = await this.prisma.idempotencyKey.findFirst({
-      where: {
+      where: safeCommittedIdempotencyWhere(
         scope,
         key,
-        status: IdempotencyStatus.COMPLETED,
-        responseStatus: { not: null },
-        responseBody: { not: Prisma.DbNull },
-        transactionGroupId: { not: null },
-        transactionGroup: {
-          status: TransactionGroupStatus.COMPLETED,
-          type: TransactionGroupType.TRANSFER,
-        },
-      },
+        TransactionGroupType.TRANSFER,
+      ),
       include: {
         transactionGroup: { select: { id: true, status: true, type: true } },
       },
@@ -115,22 +113,32 @@ export class TransferRepository {
     });
   }
 
-  async lockWallets(
+  async lockTransferParties(
     tx: Prisma.TransactionClient,
-    walletIds: [string, string],
+    fromWalletId: string,
+    toWalletId: string,
+    systemFeeWalletId: string,
     logContext?: TransferRepositoryLogContext,
-  ): Promise<{ from: LockedWalletRow; to: LockedWalletRow }> {
-    const [fromWalletId, toWalletId] = walletIds;
-    const locked = await lockWalletsForUpdateInOrder(tx, [
+  ): Promise<{
+    from: LockedWalletRow;
+    to: LockedWalletRow;
+    feeWallet: LockedWalletRow;
+  }> {
+    const lockSet = this.lockResolver.resolveTransferLockSet(
       fromWalletId,
       toWalletId,
-    ]);
+      systemFeeWalletId,
+    );
+    const locked = await lockWalletsForUpdateInOrder(tx, lockSet);
 
     const from = locked.find((w) => w.id === fromWalletId);
     const to = locked.find((w) => w.id === toWalletId);
+    const feeWallet = locked.find((w) => w.id === systemFeeWalletId);
 
-    if (!from || !to) {
-      throw new Error('lockWallets: expected both wallets after ordered lock');
+    if (!from || !to || !feeWallet) {
+      throw new Error(
+        'lockTransferParties: expected from, to, and fee wallets after ordered lock',
+      );
     }
 
     this.logger.log({
@@ -138,12 +146,14 @@ export class TransferRepository {
       correlationId: logContext?.correlationId,
       fromWalletId: from.id,
       toWalletId: to.id,
+      feeWalletId: feeWallet.id,
       fromVersion: from.version,
       toVersion: to.version,
+      feeWalletVersion: feeWallet.version,
       idempotencyKey: logContext?.idempotencyKey,
     });
 
-    return { from, to };
+    return { from, to, feeWallet };
   }
 
   async createTransactionGroupPending(

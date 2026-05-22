@@ -14,6 +14,7 @@ import {
   type IdempotencyClaimInput,
   type IdempotencyClaimResult,
 } from '../../../common/database/idempotency-lock';
+import { safeCommittedIdempotencyWhere } from '../../../common/database/idempotency-replay';
 import {
   retrySerializable,
   SERIALIZABLE_TRANSACTION_OPTIONS,
@@ -68,19 +69,13 @@ export class DepositRepository {
     logContext?: RepositoryLogContext,
   ): Promise<IdempotencyKey | null> {
     const record = await this.prisma.idempotencyKey.findFirst({
-      where: {
+      where: safeCommittedIdempotencyWhere(
         scope,
         key,
-        status: IdempotencyStatus.COMPLETED,
-        responseStatus: { not: null },
-        responseBody: { not: Prisma.DbNull },
-        transactionGroupId: { not: null },
-        transactionGroup: {
-          status: TransactionGroupStatus.COMPLETED,
-        },
-      },
+        TransactionGroupType.DEPOSIT,
+      ),
       include: {
-        transactionGroup: { select: { id: true, status: true } },
+        transactionGroup: { select: { id: true, status: true, type: true } },
       },
     });
 

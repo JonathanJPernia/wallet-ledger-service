@@ -25,10 +25,13 @@ import { DepositApiResponseDto } from '../dto/deposit-response.dto';
 import { CreateWalletDto } from '../dto/create-wallet.dto';
 import { TransferBodyDto } from '../dto/transfer-body.dto';
 import { TransferApiResponseDto } from '../dto/transfer-response.dto';
+import { WithdrawBodyDto } from '../dto/withdraw-body.dto';
+import { WithdrawApiResponseDto } from '../dto/withdraw-response.dto';
 import { WalletApiResponseDto } from '../dto/wallet-response.dto';
 import { IdempotencyKeyRequiredException } from '../exceptions/deposit.exceptions';
 import { DepositService } from '../services/deposit.service';
 import { TransferService } from '../services/transfer.service';
+import { WithdrawService } from '../services/withdraw.service';
 import { WalletsService } from '../services/wallets.service';
 import { buildRequestHash } from '../utils/request-hash.util';
 
@@ -39,6 +42,7 @@ export class WalletsController {
     private readonly walletsService: WalletsService,
     private readonly depositService: DepositService,
     private readonly transferService: TransferService,
+    private readonly withdrawService: WithdrawService,
   ) {}
 
   @Post()
@@ -155,6 +159,63 @@ export class WalletsController {
     ]);
 
     return this.depositService.depositFromHttp(
+      walletId,
+      body,
+      idempotencyKey.trim(),
+      {
+        method: req.method,
+        path: req.path,
+        requestHash,
+        correlationId,
+      },
+    );
+  }
+
+  @Post(':id/withdraw')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Withdraw funds (cash-out)',
+    description:
+      'Outbound ACID withdraw: Serializable TX, FOR UPDATE lock, ledger WITHDRAW, idempotent. Money leaves the wallet.',
+  })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    description: 'Unique key per logical withdraw (retry-safe)',
+    required: true,
+  })
+  @ApiCreatedResponse({
+    description: 'Withdraw completed',
+    type: WithdrawApiResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'Wallet not found' })
+  @ApiUnprocessableEntityResponse({
+    description: 'Invalid amount, insufficient funds, or wallet not active',
+  })
+  @ApiConflictResponse({
+    description: 'Idempotency conflict or concurrency conflict',
+  })
+  withdraw(
+    @Param('id', ParseUUIDPipe) walletId: string,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: WithdrawBodyDto,
+    @Req() req: Request,
+  ): Promise<WithdrawApiResponseDto> {
+    if (!idempotencyKey?.trim()) {
+      throw new IdempotencyKeyRequiredException();
+    }
+
+    const correlationId = req.headers[CORRELATION_ID_HEADER] as
+      | string
+      | undefined;
+
+    const requestHash = buildRequestHash([
+      req.method,
+      req.path,
+      walletId,
+      JSON.stringify(body),
+    ]);
+
+    return this.withdrawService.withdrawFromHttp(
       walletId,
       body,
       idempotencyKey.trim(),

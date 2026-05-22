@@ -15,6 +15,7 @@ model Wallet {
   /// Proyección; fuente de verdad = ledger. CHECK >= 0 en DB (migración).
   currentBalance Decimal      @default(0) @db.Decimal(18, 2)
   currency       String       @default("USD") @db.Char(3)
+  kind           WalletKind   @default(USER)
   status         WalletStatus @default(ACTIVE)
   version        Int          @default(1)
 
@@ -25,6 +26,7 @@ model Wallet {
 
   @@index([status])
   @@index([currency])
+  @@index([kind])
   @@map("wallets")
 }
 
@@ -129,7 +131,34 @@ model LedgerEntry {
   @@index([currency])
   @@index([referenceId])
   @@index([createdAt])
+  @@index([walletId, createdAt])
+  @@index([operationType, createdAt])
   @@map("ledger_entries")
+}
+
+// ---------------------------------------------------------------------------
+// FinancialSnapshot — cierre diario inmutable (capa analítica, read-only)
+// ---------------------------------------------------------------------------
+model FinancialSnapshot {
+  id                 String   @id @default(uuid())
+  snapshotDate       DateTime @db.Date @map("snapshot_date")
+  /// Cierre contable [periodStart, periodEnd) UTC — congelado al persistir.
+  periodStart        DateTime @map("period_start")
+  periodEnd          DateTime @map("period_end")
+  currency           String   @default("USD") @db.Char(3)
+  totalSystemBalance Decimal  @db.Decimal(18, 2)
+  totalFeeRevenue    Decimal  @db.Decimal(18, 2)
+  totalVolume        Decimal  @db.Decimal(18, 2)
+  createdAt          DateTime @default(now())
+
+  @@unique([snapshotDate, currency])
+  @@index([snapshotDate])
+  @@map("financial_snapshots")
+}
+
+enum WalletKind {
+  USER
+  SYSTEM_FEE
 }
 
 enum WalletStatus {
@@ -143,6 +172,8 @@ enum OperationType {
   WITHDRAW
   TRANSFER_IN
   TRANSFER_OUT
+  FEE_IN
+  FEE_OUT
 }
 
 enum TransactionGroupType {

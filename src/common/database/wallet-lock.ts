@@ -1,10 +1,13 @@
 import { Prisma } from '@prisma/client';
-import type { WalletStatus } from '@prisma/client';
+import type { WalletKind, WalletStatus } from '@prisma/client';
 import { WalletNotFoundException } from '../errors/financial.exceptions';
+import { resolveOrderedWalletIds } from './lock-resolver.service';
+
 export type LockedWalletRow = {
   id: string;
   currentBalance: Prisma.Decimal;
   currency: string;
+  kind: WalletKind;
   status: WalletStatus;
   version: number;
 };
@@ -28,7 +31,7 @@ export async function lockWalletsForUpdateInOrder(
   tx: Prisma.TransactionClient,
   walletIds: string[],
 ): Promise<LockedWalletRow[]> {
-  const sortedIds = [...new Set(walletIds)].sort();
+  const sortedIds = resolveOrderedWalletIds(...walletIds);
   if (sortedIds.length === 0) {
     return [];
   }
@@ -40,6 +43,7 @@ export async function lockWalletsForUpdateInOrder(
         id,
         "currentBalance",
         currency,
+        kind,
         status,
         version
       FROM wallets

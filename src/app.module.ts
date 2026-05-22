@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { buildLoggerConfig } from './common/logger/logger.config';
@@ -12,6 +13,10 @@ import { RedisModule } from './infrastructure/redis/redis.module';
 import { HealthModule } from './modules/health/health.module';
 import { IdempotencyModule } from './modules/idempotency/idempotency.module';
 import { LedgerModule } from './modules/ledger/ledger.module';
+import { DatabaseLocksModule } from './common/database/database-locks.module';
+import { FeesModule } from './modules/fees/fees.module';
+import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
+import { ReportingModule } from './modules/reporting/reporting.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
 
 @Module({
@@ -22,6 +27,7 @@ import { WalletsModule } from './modules/wallets/wallets.module';
         limit: 10,
       },
     ]),
+    ScheduleModule.forRoot(),
     AppConfigModule,
     LoggerModule.forRootAsync({
       inject: [ConfigService],
@@ -33,8 +39,12 @@ import { WalletsModule } from './modules/wallets/wallets.module';
     }),
     PrismaModule,
     RedisModule,
+    DatabaseLocksModule,
+    FeesModule,
     HealthModule,
     WalletsModule,
+    ReconciliationModule,
+    ReportingModule,
     LedgerModule,
     IdempotencyModule,
   ],

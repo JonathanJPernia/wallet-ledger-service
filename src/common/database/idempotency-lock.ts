@@ -90,10 +90,22 @@ export async function claimIdempotencyInTransaction(
     }
 
     if (isCommittedReplay(existing)) {
-      const group = await loadLinkedGroup(tx, existing.transactionGroupId!);
+      if (!existing.transactionGroupId) {
+        throw new IdempotencyConflictException(
+          input.key,
+          'Idempotency COMPLETED without transactionGroupId (invariant violation)',
+        );
+      }
+
+      const group = await loadLinkedGroup(tx, existing.transactionGroupId);
       if (group?.status === TransactionGroupStatus.COMPLETED) {
         return { kind: 'cached', record: existing };
       }
+
+      throw new IdempotencyConflictException(
+        input.key,
+        'Idempotency COMPLETED but transaction group is not COMPLETED (invariant violation)',
+      );
     }
 
     if (existing.status === IdempotencyStatus.PROCESSING) {

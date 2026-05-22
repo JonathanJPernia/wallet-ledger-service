@@ -22,14 +22,28 @@ Dentro de **TX Serializable**:
 
 **La garantía financiera de no doble ejecución depende del claim + locks, no del fast path.**
 
+### Invariante: idempotency COMPLETED ⟺ transactionGroup COMPLETED
+
+**Regla fuerte (mismo COMMIT):**
+
+```
+idempotency.status === COMPLETED
+  ⟺ transaction_group.status === COMPLETED
+  ⟺ transactionGroupId presente
+  ⟺ responseBody escrito (último paso de la TX)
+```
+
+Si divergen (ej. group COMPLETED sin idempotency actualizada) → **no replay** en fast path; dentro de TX el `claim` lanza `409` con mensaje de violación de invariante.
+
+Implementación: `safeCommittedIdempotencyWhere()` + `claimIdempotencyInTransaction` valida group antes de `cached`.
+
 ### Fast path (`findSafeCommittedReplay`) — solo performance
 
 Lectura **fuera** de la TX, antes de `runSerializable`:
 
-- Condiciones: `idempotency.status = COMPLETED`, `responseBody` presente, `transaction_group.status = COMPLETED` (y tipo acorde en transfer).
-- Propósito: evitar TX Serializable en retries exitosos ya persistidos.
-- **No es mecanismo de seguridad.** Ventana teórica post-commit es aceptable: si el join es consistente, el commit ya ocurrió; si otra request entra en paralelo, el claim `FOR UPDATE` serializa la siguiente ejecución.
-- Replay incorrecto por inconsistencia manual en DB es riesgo operativo (reconciliación), no de carrera normal.
+- Usa `safeCommittedIdempotencyWhere`: exige **ambos** COMPLETED + tipo de operación (DEPOSIT / TRANSFER / WITHDRAW).
+- **No es mecanismo de seguridad.** Safety = `claim` + `FOR UPDATE`.
+- Inconsistencia manual en DB → reconciliación / ops, no replay parcial silencioso.
 
 ### FAILED observability
 
@@ -89,21 +103,99 @@ COMMIT
 ```
 BEGIN TX (Serializable)
   1. lock/claim idempotency (scope: wallet.transfer)
-  2. lock wallets [from, to] id asc (FOR UPDATE)
-  3. validate ACTIVE, currency, funds
+  2. lock wallets [from, to, SYSTEM_FEE_WALLET] id asc (FOR UPDATE)
+  3. validate ACTIVE, currency, funds >= base + fee
   4. transaction_group TRANSFER PENDING
   5. ledger TRANSFER_OUT + TRANSFER_IN (amount > 0)
-  6. update both projections (version++)
-  7. transaction_group COMPLETED
-  8. idempotency COMPLETED + response (ÚLTIMO)
+  6. ledger FEE_OUT (sender) + FEE_IN (SYSTEM_FEE_WALLET), misma group
+  7. update projections (from, to, fee wallet)
+  8. transaction_group COMPLETED
+  9. idempotency COMPLETED + response (ÚLTIMO)
 COMMIT
 ```
 
-## Reconciliación (job futuro)
+`POST /api/wallets/transfer` — scope `wallet.transfer`. Fee transfer: **0.5%** del monto base.
+
+## Withdraw (cash-out) — FASE 2.7
 
 ```
-expected = SUM(ledger effect by operationType)
-actual   = wallet.currentBalance
+BEGIN TX (Serializable)
+  1. lock/claim idempotency (scope: wallet.withdraw)
+  2. lock wallet + SYSTEM_FEE_WALLET (FOR UPDATE, id asc)
+  3. validate ACTIVE, amount > 0, balance >= base + fee
+  4. transaction_group WITHDRAW PENDING
+  5. ledger_entry WITHDRAW (amount > 0)
+  6. ledger FEE_OUT + FEE_IN (misma group)
+  7. update projections (user + fee wallet)
+  8. transaction_group COMPLETED
+  9. idempotency COMPLETED + response (ÚLTIMO)
+COMMIT
 ```
 
-Si `expected != actual` → alerta operativa.
+Fee withdraw: **1%** del monto base.
+
+## Fees / revenue — FASE 2.8
+
+- Wallet interna `SYSTEM_FEE` **por moneda** (`WalletKind.SYSTEM_FEE` + índice único parcial por `currency`).
+- **FeeIntent** (pre-commit): `baseAmount`, `feeAmount`, `totalDebit`, balances derivados antes de ledger.
+- Política: `fee.policy.ts` — rates; `FeesService.applyFee` solo persiste según intent.
+- **LockResolverService**: orden determinista del lock set (from/to/fee, extensible).
+- Idempotency: validación de `responseBody` al persistir; replay con rebuild desde ledger si snapshot corrupto.
+
+### Snapshots inmutables (2.9 fix)
+
+- `periodStart` / `periodEnd` explícitos (cierre `[start, end)` UTC).
+- **Fuera de ventana de corrección (7 días):** insert-only; si existe → skip (nunca UPDATE).
+- **Dentro de ventana:** delete+insert para late-arriving (solo días recientes).
+- Cron 00:00 UTC: re-procesa últimos 7 días × todas las monedas del ledger.
+- Exports: keyset pagination por chunks (5k filas), memoria O(chunk).
+- Ledger guard: `UNIQUE (transactionGroupId, operationType, walletId)` donde group no null.
+- Ledger: `FEE_OUT` (débito pagador) + `FEE_IN` (crédito revenue); siempre misma `transactionGroup` que la operación padre (idempotencia atómica).
+- Depósito: 0% por defecto (configurable en policy).
+- `SYSTEM_FEE` no puede transferir ni retirar vía API usuario.
+
+`POST /api/wallets/:id/withdraw` — scope `wallet.withdraw`; mismas garantías que deposit bajo concurrencia.
+
+## Reconciliación (FASE 2.6 — read-only)
+
+**Ledger = fuente de verdad.** `wallet.currentBalance` = proyección.
+
+```
+ledgerBalance = SUM(
+  DEPOSIT       → +amount
+  TRANSFER_IN   → +amount
+  FEE_IN        → +amount
+  WITHDRAW      → -amount
+  TRANSFER_OUT  → -amount
+  FEE_OUT       → -amount
+  (otro tipo)   → 0  — no ELSE implícito como débito
+)
+
+difference = projectionBalance - ledgerBalance
+isConsistent = (difference == 0)
+```
+
+Endpoints:
+
+- `GET /api/reconciliation/wallets/:walletId` — una wallet
+- `GET /api/reconciliation/drift` — solo wallets inconsistentes
+
+**Nunca** actualiza balances ni repara drift automáticamente.
+
+Log drift: `reconciliation.drift_detected` + código `RECONCILIATION_DRIFT_DETECTED`.
+
+## Reporting / P&L — FASE 2.9 (read-only)
+
+Capa analítica sobre ledger (nunca muta wallets ni ledger).
+
+- `GET /api/reporting/pnl` — revenue = `FEE_IN`, breakdown por `transaction_group.type`
+- `GET /api/reporting/analytics/system` — volumen, fees, top wallets (SQL agregado)
+- `GET /api/reporting/analytics/wallets/:id` — depósitos, retiros, net flow
+- `GET /api/reporting/audit/wallets/:id/rebuild?toDate=` — replay ledger vs proyección
+- `GET /api/reporting/snapshots` — cierres diarios (`financial_snapshots`)
+- `POST /api/reporting/snapshots/run` — snapshot manual
+- `GET /api/reporting/exports/*.csv` — ledger, revenue, reconciliation
+
+Cron: `00:00 UTC` persiste snapshot del día anterior.
+
+Futuro: auto-repair bajo aprobación humana (fuera de reporting).

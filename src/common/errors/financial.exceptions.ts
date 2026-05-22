@@ -62,6 +62,16 @@ export class SameWalletTransferException extends DomainException {
   }
 }
 
+export class SystemWalletNotAllowedException extends DomainException {
+  constructor(walletId: string, operation: string) {
+    super(
+      ErrorCode.SYSTEM_WALLET_NOT_ALLOWED,
+      `System wallet ${walletId} cannot be used for ${operation}`,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+    );
+  }
+}
+
 export class ConcurrencyConflictException extends DomainException {
   constructor(walletId: string) {
     super(
