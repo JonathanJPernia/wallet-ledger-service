@@ -1,5 +1,7 @@
 # Diseño financiero — wallet ledger service
 
+> Vista de arquitectura, contrato REST, garantías al consumidor, scope y operación: [architecture.md](./architecture.md).
+
 ## Invariantes
 
 1. **Balance nunca negativo** — validado en app bajo `FOR UPDATE`; **CHECK `currentBalance >= 0`** en DB.

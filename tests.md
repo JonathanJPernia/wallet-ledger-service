@@ -1,6 +1,7 @@
 # Guía de tests — Wallet Ledger Service
 
-> **Estrategia por riesgos:** qué riesgo cubre cada test y por qué existe → **[tests-risks.md](./tests-risks.md)** (checklist de evaluación, no cobertura %).
+> **Estrategia por riesgos:** qué riesgo cubre cada test y por qué existe → **[tests-risks.md](./tests-risks.md)** (checklist de evaluación, no cobertura %).  
+> **Arquitectura y diseño:** **[docs/architecture.md](./docs/architecture.md)**.
 
 Todos los tests asumen **PostgreSQL** accesible vía `DATABASE_URL` (ver `.env.example`). Levanta la DB antes de E2E o load:
 

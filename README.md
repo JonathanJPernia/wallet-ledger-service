@@ -96,7 +96,33 @@ Deploy y variables: [ops-console/README.md](./ops-console/README.md) · En Railw
 | `npm run test:all` | Unit + E2E |
 
 **Guía completa de tests:** [tests.md](./tests.md)  
-**Estrategia por riesgos (qué cubre cada test y por qué):** [tests-risks.md](./tests-risks.md)
+**Estrategia por riesgos (qué cubre cada test y por qué):** [tests-risks.md](./tests-risks.md)  
+**Arquitectura y diseño (diagramas, contrato REST, garantías, operación):** [docs/architecture.md](./docs/architecture.md)
+
+## Elementos opcionales entregados
+
+Además del MVP (wallets, deposit, transfer, withdraw, ledger, idempotency, reconciliación), se sumaron **18** capacidades opcionales:
+
+| # | Elemento | Dónde |
+|---|----------|--------|
+| 1 | Ops Console (Next.js, tutorial, stress lab, Mi cuenta) | `ops-console/` |
+| 2 | GET saldo + movimientos | `GET /api/wallets/:id`, `/movements` |
+| 3 | Docker one-command stack | `npm run docker:stack` |
+| 4 | Fees (0.5% transfer, 1% withdraw) + wallet SYSTEM_FEE | `fee.policy.ts` |
+| 5 | Reporting P&L, analytics, snapshots, CSV export streaming | `modules/reporting` |
+| 6 | Reconciliación read-only + drift listing | `modules/reconciliation` |
+| 7 | Audit replay / diff / system rebuild | `modules/audit` |
+| 8 | Risk scoring + bloqueo transfer/withdraw | `modules/risk` |
+| 9 | Anomaly detection (velocity, amount, graph) | `modules/anomaly` |
+| 10 | Financial events + outbox + DLQ worker | `modules/events` |
+| 11 | Materialized views + refresh incremental | `modules/materialized` |
+| 12 | Monitoring live endpoint | `GET /api/monitoring/live` |
+| 13 | Prometheus metrics | `GET /api/metrics` |
+| 14 | Circuit breaker por scope | `wallet_circuit_breakers` |
+| 15 | Ledger partitioning + cron | `LedgerPartitionCron` |
+| 16 | Audit log tabla | `audit_log` |
+| 17 | Suite `test:final` + matriz de riesgos | `tests.md`, `tests-risks.md` |
+| 18 | Load tests (idempotency, partition pruning) | `test/load/` |
 
 ## Estructura
 
