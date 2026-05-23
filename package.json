@@ -7,8 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "clean": "rm -rf dist tsconfig.build.tsbuildinfo",
-    "build": "nest build",
-    "postinstall": "prisma generate",
+    "build": "prisma generate && nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"prisma/**/*.prisma\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"prisma/**/*.prisma\"",
     "start": "node dist/main.js",
