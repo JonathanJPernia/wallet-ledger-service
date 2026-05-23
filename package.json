@@ -35,7 +35,9 @@
     "prisma:studio": "prisma studio",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f"
+    "docker:logs": "docker compose logs -f",
+    "ops:dev": "npm run dev --prefix ops-console",
+    "ops:build": "npm run build --prefix ops-console"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

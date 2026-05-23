@@ -27,6 +27,19 @@ npm run start:dev
 Health check: `GET http://localhost:3000/api/health` (DB, uptime, memory, version, build SHA)  
 Swagger: `http://localhost:3000/api/docs`
 
+### Ops Console (frontend de pruebas)
+
+UI Next.js (tutorial + pruebas de estrés). Despliegue en **Vercel** con root `ops-console`.
+
+```bash
+cd ops-console && cp .env.example .env.local && npm install
+npm run ops:dev   # desde la raíz del backend, puerto 3001
+```
+
+Documentación y deploy: [ops-console/README.md](./ops-console/README.md)
+
+En Railway: `CORS_ORIGINS` = URL de Vercel + `http://localhost:3001`.
+
 ## Scripts
 
 | Script | Descripción |
@@ -38,6 +51,8 @@ Swagger: `http://localhost:3000/api/docs`
 | `npm run prisma:generate` | Genera el cliente Prisma |
 | `npm run prisma:migrate:dev` | Migraciones en desarrollo |
 | `npm run docker:up` | Levanta PostgreSQL y Redis |
+| `npm run ops:dev` | Ops Console Next.js (puerto 3001) |
+| `npm run ops:build` | Build del Ops Console |
 | `npm test` | Unit tests |
 | **`npm run test:final`** | **Suite de evaluación final** (STEPS 1–4 + assert global, orden fijo) |
 | `npm run test:e2e` | Todos los E2E |
