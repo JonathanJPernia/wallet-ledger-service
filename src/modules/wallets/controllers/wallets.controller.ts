@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import {
@@ -14,6 +16,7 @@ import {
   ApiCreatedResponse,
   ApiHeader,
   ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiUnprocessableEntityResponse,
@@ -27,6 +30,9 @@ import { TransferBodyDto } from '../dto/transfer-body.dto';
 import { TransferApiResponseDto } from '../dto/transfer-response.dto';
 import { WithdrawBodyDto } from '../dto/withdraw-body.dto';
 import { WithdrawApiResponseDto } from '../dto/withdraw-response.dto';
+import { WalletDetailApiResponseDto } from '../dto/wallet-detail-response.dto';
+import { WalletMovementsApiResponseDto } from '../dto/wallet-movement-response.dto';
+import { WalletMovementsQueryDto } from '../dto/wallet-movements-query.dto';
 import { WalletApiResponseDto } from '../dto/wallet-response.dto';
 import { IdempotencyKeyRequiredException } from '../exceptions/deposit.exceptions';
 import { DepositService } from '../services/deposit.service';
@@ -61,6 +67,41 @@ export class WalletsController {
   })
   create(@Body() dto: CreateWalletDto): Promise<WalletApiResponseDto> {
     return this.walletsService.createWallet(dto);
+  }
+
+  @Get(':id/movements')
+  @ApiOperation({
+    summary: 'List wallet ledger movements',
+    description:
+      'Historical movements from the append-only ledger (newest first). Paginate with meta.nextCursor.',
+  })
+  @ApiOkResponse({
+    description: 'Ledger movements page',
+    type: WalletMovementsApiResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'Wallet not found' })
+  listMovements(
+    @Param('id', ParseUUIDPipe) walletId: string,
+    @Query() query: WalletMovementsQueryDto,
+  ): Promise<WalletMovementsApiResponseDto> {
+    return this.walletsService.listWalletMovements(walletId, query);
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get wallet by id',
+    description:
+      'Current balance (projection), ledger balance, and consistency flag.',
+  })
+  @ApiOkResponse({
+    description: 'Wallet details',
+    type: WalletDetailApiResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'Wallet not found' })
+  getById(
+    @Param('id', ParseUUIDPipe) walletId: string,
+  ): Promise<WalletDetailApiResponseDto> {
+    return this.walletsService.getWalletById(walletId);
   }
 
   @Post('transfer')

@@ -230,7 +230,35 @@ describe('E2E financial flow (real API)', () => {
       systemFeeWallet.currentBalance.toFixed(2),
     );
 
-    // --- 6. Reconciliation (both wallets) ---
+    // --- 6. GET wallet + movements ---
+    const walletGet = await request(app.getHttpServer())
+      .get(`/api/wallets/${originWalletId}`)
+      .expect(200);
+
+    expect(walletGet.body.data.id).toBe(originWalletId);
+    expect(walletGet.body.data.currentBalance).toBe(
+      ORIGIN_FINAL_BALANCE.toFixed(2),
+    );
+    expect(walletGet.body.data.ledgerBalance).toBe(
+      ORIGIN_FINAL_BALANCE.toFixed(2),
+    );
+    expect(walletGet.body.data.isConsistent).toBe(true);
+
+    const movementsRes = await request(app.getHttpServer())
+      .get(`/api/wallets/${originWalletId}/movements`)
+      .query({ limit: 20 })
+      .expect(200);
+
+    expect(movementsRes.body.data.walletId).toBe(originWalletId);
+    expect(movementsRes.body.data.movements.length).toBeGreaterThanOrEqual(3);
+
+    const operationTypes = movementsRes.body.data.movements.map(
+      (m: { operationType: string }) => m.operationType,
+    );
+    expect(operationTypes).toContain('DEPOSIT');
+    expect(operationTypes).toContain('WITHDRAW');
+
+    // --- 7. Reconciliation (both wallets) ---
     const reconOrigin = await request(app.getHttpServer())
       .get(`/api/reconciliation/wallets/${originWalletId}`)
       .expect(200);
@@ -250,7 +278,7 @@ describe('E2E financial flow (real API)', () => {
     expect(reconDest.body.data.isConsistent).toBe(true);
     expect(reconDest.body.data.ledgerBalance).toBe('30.00');
 
-    // --- 7. P&L vs ledger FEE_IN (test window) ---
+    // --- 8. P&L vs ledger FEE_IN (test window) ---
     const ledgerFeeTotal = await sumFeeInLedger(prisma, {
       start: testRangeStart,
       end: testRangeEnd,

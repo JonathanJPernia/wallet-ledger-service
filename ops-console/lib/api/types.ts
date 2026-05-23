@@ -25,6 +25,32 @@ export type Wallet = {
   updatedAt: string;
 };
 
+export type WalletDetail = Wallet & {
+  ledgerBalance: string;
+  isConsistent: boolean;
+};
+
+export type WalletMovement = {
+  id: string;
+  operationType: string;
+  amount: string;
+  signedAmount: string;
+  currency: string;
+  balanceBefore: string;
+  balanceAfter: string;
+  transactionGroupId?: string | null;
+  correlationId?: string | null;
+  createdAt: string;
+};
+
+export type WalletMovementsList = {
+  walletId: string;
+  movements: WalletMovement[];
+  count: number;
+  hasMore: boolean;
+  nextCursor?: string;
+};
+
 export type DepositResult = {
   transactionGroupId: string;
   ledgerEntryId: string;

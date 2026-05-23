@@ -34,21 +34,33 @@ El **frontend** incluye tutorial paso a paso y pruebas de estrés contra el API 
 
 ## Inicio rápido
 
+### Un solo comando (API + Postgres + Redis)
+
 ```bash
-# 1. Variables de entorno
 cp .env.example .env
+npm run docker:stack
+```
 
-# 2. Base de datos
+API en http://localhost:3000 · Swagger http://localhost:3000/api/docs
+
+### Solo infra (desarrollo local del API en el host)
+
+```bash
+cp .env.example .env
 npm run docker:up
-
-# 3. Cliente Prisma
 npm run prisma:generate
-
-# 4. Desarrollo
+npm run prisma:migrate:dev
 npm run start:dev
 ```
 
 Local: health `http://localhost:3000/api/health` · Swagger `http://localhost:3000/api/docs`
+
+### Consultar cuenta (API)
+
+| Acción | Método |
+|--------|--------|
+| Saldo y detalle | `GET /api/wallets/:id` |
+| Movimientos | `GET /api/wallets/:id/movements?limit=50` |
 
 ### Ops Console (código del frontend)
 
@@ -69,7 +81,8 @@ Deploy y variables: [ops-console/README.md](./ops-console/README.md) · En Railw
 | `npm run format` / `format:check` | Prettier |
 | `npm run prisma:generate` | Genera el cliente Prisma |
 | `npm run prisma:migrate:dev` | Migraciones en desarrollo |
-| `npm run docker:up` | Levanta PostgreSQL y Redis |
+| `npm run docker:stack` | **Todo:** Postgres + Redis + API + migraciones |
+| `npm run docker:up` | Solo PostgreSQL y Redis |
 | `npm run ops:dev` | Ops Console Next.js (puerto 3001) |
 | `npm run ops:build` | Build del Ops Console |
 | `npm test` | Unit tests |

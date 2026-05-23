@@ -5,9 +5,10 @@ import { apiData, newIdempotencyKey } from '@/lib/api/client';
 import type {
   DepositResult,
   HealthResponse,
-  ReconciliationResult,
   TransferResult,
   Wallet,
+  WalletDetail,
+  WalletMovementsList,
   WithdrawResult,
 } from '@/lib/api/types';
 import { PageHero } from '@/components/layout/PageHero';
@@ -26,7 +27,7 @@ const STEPS = [
   'Ingresar dinero',
   'Enviar a otra billetera',
   'Retirar dinero',
-  'Verificar saldos',
+  'Ver saldo y movimientos',
 ];
 
 type StepMessage = {
@@ -187,24 +188,26 @@ export function TutorialWizard() {
       }
 
       if (step === 5 && walletA) {
-        const r = await apiData<ReconciliationResult>(
-          `/reconciliation/wallets/${walletA}`,
+        const detail = await apiData<WalletDetail>(`/wallets/${walletA}`);
+        const mov = await apiData<WalletMovementsList>(
+          `/wallets/${walletA}/movements?limit=10`,
         );
-        pushLog(r);
-        if (r.ok && r.data) {
+        pushLog({ detail, mov });
+        if (detail.ok && detail.data && mov.ok && mov.data) {
           markDone(5);
+          setBalanceA(detail.data.currentBalance);
           setLastMessage({
-            tone: r.data.isConsistent ? 'ok' : 'warn',
-            title: r.data.isConsistent ? '¡Todo cuadra!' : 'Hay una diferencia',
-            message: r.data.isConsistent
-              ? `El saldo (${formatMoney(r.data.projectionBalance)}) coincide con la suma de todos los movimientos.`
-              : 'Los números no coinciden del todo. Un técnico debería revisar el servidor.',
+            tone: detail.data.isConsistent ? 'ok' : 'warn',
+            title: detail.data.isConsistent ? '¡Todo cuadra!' : 'Revisa los números',
+            message: detail.data.isConsistent
+              ? `Saldo ${formatMoney(detail.data.currentBalance)} · ${mov.data.movements.length} movimientos en el historial. Puedes ver más en Mi cuenta.`
+              : `El saldo en pantalla no coincide con el ledger (${formatMoney(detail.data.ledgerBalance)}).`,
           });
         } else {
           setLastMessage({
             tone: 'error',
-            title: 'No se pudo verificar',
-            message: r.error ?? 'Error al comprobar saldos.',
+            title: 'No se pudo consultar la cuenta',
+            message: detail.error ?? mov.error ?? 'Intenta de nuevo.',
           });
         }
       }

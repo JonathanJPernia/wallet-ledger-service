@@ -10,6 +10,7 @@ import { Button, Input } from '@/components/ui/Primitives';
 const NAV = [
   { href: '/', label: 'Inicio' },
   { href: '/tutorial', label: 'Tutorial' },
+  { href: '/cuenta', label: 'Mi cuenta' },
   { href: '/stress', label: 'Pruebas de estrés' },
 ];
 

@@ -2,23 +2,51 @@ services:
   postgres:
     image: postgres:16
     container_name: wallet-postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: wallet_user
       POSTGRES_PASSWORD: wallet_password
       POSTGRES_DB: wallet_db
     ports:
-      # Host 5433: evita conflicto si ya tienes Postgres en 5432
       - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U wallet_user -d wallet_db']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7
     container_name: wallet-redis
-    restart: always
+    restart: unless-stopped
     ports:
       - '6379:6379'
+
+  api:
+    build:
+      context: .
+      target: development
+    container_name: wallet-api
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: postgresql://wallet_user:wallet_password@postgres:5432/wallet_db?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      NODE_ENV: development
+      PORT: '3000'
+      CORS_ORIGINS: http://localhost:3001,http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: >
+      sh -c "npx prisma migrate deploy &&
+      npm run start:dev"
 
 volumes:
   postgres_data:

@@ -103,6 +103,15 @@ export default function DashboardPage() {
         </FeatureCard>
 
         <FeatureCard
+          title="Mi cuenta"
+          action={{ label: 'Consultar saldo', href: '/cuenta' }}
+        >
+          <p>
+            Consulta el saldo actual y el historial de movimientos con el ID de tu billetera.
+          </p>
+        </FeatureCard>
+
+        <FeatureCard
           title="Pruebas de estrés"
           action={{ label: 'Abrir pruebas', href: '/stress' }}
         >
