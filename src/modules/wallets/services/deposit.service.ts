@@ -16,6 +16,9 @@ import {
   failureReasonFromError,
   shouldPersistIdempotencyFailure,
 } from '../../../common/database/idempotency-failure';
+import { MetricsService } from '../../../common/observability/metrics.service';
+import { CircuitBreakerService } from '../../circuit-breaker/circuit-breaker.service';
+import { FinancialEventsService } from '../../events/services/financial-events.service';
 import {
   DepositRepository,
   type RepositoryLogContext,
@@ -39,7 +42,12 @@ export type DepositCommand = {
 export class DepositService {
   private readonly logger = new Logger(DepositService.name);
 
-  constructor(private readonly depositRepository: DepositRepository) {}
+  constructor(
+    private readonly depositRepository: DepositRepository,
+    private readonly financialEventsService: FinancialEventsService,
+    private readonly circuitBreaker: CircuitBreakerService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   async deposit(
     command: DepositCommand,
@@ -65,6 +73,7 @@ export class DepositService {
       logCtx,
     );
     if (safeReplay?.responseBody) {
+      this.metrics.recordIdempotencyReplay(scope);
       this.logger.log({
         event: 'deposit.idempotency_replay',
         source: 'safe_committed_fast_path',
@@ -79,13 +88,29 @@ export class DepositService {
       });
     }
 
+    await this.circuitBreaker.assertWalletOperational(
+      command.walletId,
+      'deposit',
+      command.correlationId,
+    );
+
     try {
       const result = await this.depositRepository.runSerializable((tx) =>
         this.executeSerializableDeposit(tx, command, scope, logCtx),
       );
 
+      await this.circuitBreaker.recordSuccess('wallet', command.walletId);
+      this.metrics.recordFinancialOperation('deposit', 'success');
       return buildApiResponse(result);
     } catch (error) {
+      if (this.circuitBreaker.isInfrastructureFailure(error)) {
+        await this.circuitBreaker.recordFailure(
+          'wallet',
+          command.walletId,
+          command.correlationId,
+        );
+      }
+      this.metrics.recordFinancialOperation('deposit', 'failure');
       if (shouldPersistIdempotencyFailure(error)) {
         await this.depositRepository.recordIdempotencyFailureOutsideTx({
           scope,
@@ -273,6 +298,14 @@ export class DepositService {
     }
 
     await this.depositRepository.completeTransactionGroup(tx, group.id, logCtx);
+
+    await this.financialEventsService.recordDepositCompleted(tx, {
+      walletId: wallet.id,
+      transactionGroupId: group.id,
+      amount: command.amount,
+      currency: wallet.currency,
+      correlationId: command.correlationId,
+    });
 
     return {
       transactionGroupId: group.id,

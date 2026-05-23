@@ -38,7 +38,17 @@ Swagger: `http://localhost:3000/api/docs`
 | `npm run prisma:generate` | Genera el cliente Prisma |
 | `npm run prisma:migrate:dev` | Migraciones en desarrollo |
 | `npm run docker:up` | Levanta PostgreSQL y Redis |
-| `npm run test:e2e` | Tests end-to-end |
+| `npm test` | Unit tests |
+| **`npm run test:final`** | **Suite de evaluación final** (STEPS 1–4 + assert global, orden fijo) |
+| `npm run test:e2e` | Todos los E2E |
+| `npm run test:e2e:financial` | E2E flujo financiero (STEP 1) |
+| `npm run test:e2e:concurrency` | E2E concurrencia / idempotency (STEP 2) |
+| `npm run test:audit` | Integridad monetaria global (STEP 3) |
+| `npm run test:reporting` | Validación P&L vs ledger (STEP 4) |
+| `npm run test:load` | Load tests (DB + flag `RUN_LOAD_TESTS`) |
+| `npm run test:all` | Unit + E2E |
+
+**Guía completa de tests:** [tests.md](./tests.md)
 
 ## Estructura
 

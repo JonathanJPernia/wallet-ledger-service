@@ -33,10 +33,11 @@ export class PnlService {
       currency: input.currency ?? 'USD',
     };
 
-    const [totalRevenue, breakdownRows] = await Promise.all([
-      this.reportingRepository.sumFeeRevenue(range),
+    const [revenueResult, breakdownRows] = await Promise.all([
+      this.reportingRepository.sumFeeRevenueWithSource(range),
       this.reportingRepository.feeBreakdownByGroupType(range),
     ]);
+    const totalRevenue = revenueResult.total;
 
     const feeBreakdown = {
       TRANSFER: '0.00',
@@ -62,6 +63,7 @@ export class PnlService {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       totalRevenue: totalRevenueStr,
+      dataSource: revenueResult.dataSource,
     });
 
     return buildApiResponse({

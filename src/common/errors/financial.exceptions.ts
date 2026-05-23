@@ -103,11 +103,35 @@ export class IdempotencyPayloadMismatchException extends DomainException {
   }
 }
 
+export class WalletRiskBlockedException extends DomainException {
+  constructor(
+    walletId: string,
+    riskLevel: string,
+    flags: string[],
+  ) {
+    super(
+      ErrorCode.WALLET_RISK_BLOCKED,
+      `Wallet ${walletId} blocked for operation (riskLevel=${riskLevel}, flags=${flags.join(',')})`,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+    );
+  }
+}
+
 export class SerializationFailureException extends DomainException {
   constructor() {
     super(
       ErrorCode.SERIALIZATION_FAILURE,
       'Transaction failed after maximum serialization retries',
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
+}
+
+export class WalletCircuitOpenException extends DomainException {
+  constructor(walletId: string, state: string) {
+    super(
+      ErrorCode.CIRCUIT_BREAKER_OPEN,
+      `Circuit breaker is ${state} for wallet ${walletId}`,
       HttpStatus.SERVICE_UNAVAILABLE,
     );
   }

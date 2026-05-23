@@ -62,6 +62,25 @@ export class ReportingRepository {
   }
 
   async sumFeeRevenue(range: DateRangeFilter): Promise<Prisma.Decimal> {
+    const { total } = await this.sumFeeRevenueWithSource(range);
+    return total;
+  }
+
+  /**
+   * P&L v2: MV para rangos cerrados en el pasado; ledger fallback si MV incompleto.
+   */
+  async sumFeeRevenueWithSource(range: DateRangeFilter): Promise<{
+    total: Prisma.Decimal;
+    dataSource: 'ledger' | 'mv';
+  }> {
+    const todayStart = this.utcTodayStart();
+    if (range.endDate <= todayStart) {
+      const mvTotal = await this.sumFeeRevenueFromMv(range);
+      if (mvTotal !== null) {
+        return { total: mvTotal, dataSource: 'mv' };
+      }
+    }
+
     const rows = await this.prisma.$queryRaw<{ total: Prisma.Decimal }[]>`
       SELECT COALESCE(SUM(le.amount), 0)::decimal(18, 2) AS total
       FROM ledger_entries le
@@ -72,7 +91,35 @@ export class ReportingRepository {
         AND le."createdAt" < ${range.endDate}
         ${this.currencyFilter(range.currency)}
     `;
-    return new Prisma.Decimal(rows[0]?.total ?? 0);
+    return {
+      total: new Prisma.Decimal(rows[0]?.total ?? 0),
+      dataSource: 'ledger',
+    };
+  }
+
+  private async sumFeeRevenueFromMv(
+    range: DateRangeFilter,
+  ): Promise<Prisma.Decimal | null> {
+    const currency = (range.currency ?? 'USD').toUpperCase();
+    const rows = await this.prisma.$queryRaw<{ total: Prisma.Decimal }[]>`
+      SELECT COALESCE(SUM("totalFees"), 0)::decimal(18, 2) AS total
+      FROM mv_daily_fee_revenue
+      WHERE bucket_date >= ${range.startDate}::date
+        AND bucket_date < ${range.endDate}::date
+        AND currency = ${currency}
+    `;
+    const total = rows[0]?.total;
+    if (total === undefined || total === null) {
+      return null;
+    }
+    return new Prisma.Decimal(total);
+  }
+
+  private utcTodayStart(): Date {
+    const now = new Date();
+    return new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
   }
 
   async feeBreakdownByGroupType(

@@ -199,3 +199,19 @@ Capa analítica sobre ledger (nunca muta wallets ni ledger).
 Cron: `00:00 UTC` persiste snapshot del día anterior.
 
 Futuro: auto-repair bajo aprobación humana (fuera de reporting).
+
+## Financial Intelligence — FASE 3.0
+
+Capa read-only + pre-flight guards sobre el ledger core.
+
+| Módulo | Endpoints | Rol |
+|--------|-----------|-----|
+| `audit` | `/api/audit/replay`, `/diff`, `/system/rebuild` | Time-travel ledger, diff vs projection |
+| `anomaly` | `/api/anomaly/wallets/:id`, `/scan` | Velocity / amount / graph flags |
+| `risk` | `/api/risk/wallets/:id` | Composite score; blocks transfer/withdraw si LIMITED/BLOCKED |
+| `events` | `/api/events/wallets/:id` | Event stream por operación (misma TX) |
+| `materialized` | cron `*/15` UTC, `POST /refresh` | `mv_daily_*` aceleración reporting |
+| `monitoring` | `/api/monitoring/live` | Fees/min, wallets activas, alertas |
+
+**Write path:** `RiskScoringService.assertWalletAllowed` antes de transfer/withdraw.  
+**Events:** `FinancialEventsService` append en TX al completar grupo.

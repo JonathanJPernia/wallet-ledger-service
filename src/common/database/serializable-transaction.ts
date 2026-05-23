@@ -5,12 +5,29 @@ import { SerializationFailureException } from '../errors/financial.exceptions';
 const logger = new Logger('SerializableTransaction');
 
 /** Reintentos ante 40001 / deadlock — explícito para evitar loops silenciosos. */
-export const MAX_SERIALIZABLE_RETRIES = 5;
+export const MAX_SERIALIZABLE_RETRIES = (() => {
+  const fromEnv = Number.parseInt(
+    process.env.E2E_SERIALIZABLE_MAX_RETRIES ?? '',
+    10,
+  );
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 5;
+})();
+
+const E2E_MAX_WAIT = Number.parseInt(
+  process.env.E2E_SERIALIZABLE_MAX_WAIT ?? '',
+  10,
+);
+const E2E_TIMEOUT = Number.parseInt(
+  process.env.E2E_SERIALIZABLE_TIMEOUT ?? '',
+  10,
+);
 
 export const SERIALIZABLE_TRANSACTION_OPTIONS = {
   isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-  maxWait: 5_000,
-  timeout: 15_000,
+  maxWait:
+    Number.isFinite(E2E_MAX_WAIT) && E2E_MAX_WAIT > 0 ? E2E_MAX_WAIT : 5_000,
+  timeout:
+    Number.isFinite(E2E_TIMEOUT) && E2E_TIMEOUT > 0 ? E2E_TIMEOUT : 15_000,
 } satisfies {
   isolationLevel: Prisma.TransactionIsolationLevel;
   maxWait: number;

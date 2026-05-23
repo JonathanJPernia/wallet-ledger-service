@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { CircuitBreakerModule } from '../circuit-breaker/circuit-breaker.module';
+import { RiskModule } from '../risk/risk.module';
 import { WalletsController } from './controllers/wallets.controller';
 import { DepositRepository } from './repositories/deposit.repository';
 import { TransferRepository } from './repositories/transfer.repository';
@@ -10,6 +12,7 @@ import { WithdrawService } from './services/withdraw.service';
 import { WalletsService } from './services/wallets.service';
 
 @Module({
+  imports: [RiskModule, CircuitBreakerModule],
   controllers: [WalletsController],
   providers: [
     WalletsRepository,

@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  StreamableFile,
 } from '@nestjs/common';
 import {
   ApiOkResponse,
@@ -110,31 +111,42 @@ export class ReportingController {
 
   @Get('exports/wallets/:walletId/ledger.csv')
   @ApiProduces('text/csv')
-  @Header('Content-Type', 'text/csv')
-  @ApiOperation({ summary: 'Export wallet ledger as CSV' })
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="wallet-ledger.csv"')
+  @Header('Transfer-Encoding', 'chunked')
+  @ApiOperation({
+    summary: 'Export wallet ledger as CSV (HTTP stream, O(chunk) memory)',
+  })
   exportWalletLedger(
     @Param('walletId', ParseUUIDPipe) walletId: string,
     @Query() query: ReportingRangeQueryDto,
-  ) {
-    return this.financialExportService.exportWalletLedgerCsv(walletId, {
+  ): StreamableFile {
+    const stream = this.financialExportService.streamWalletLedgerCsv(walletId, {
       startDate: query.startDate,
       endDate: query.endDate,
     });
+    return new StreamableFile(stream, { type: 'text/csv; charset=utf-8' });
   }
 
   @Get('exports/revenue.csv')
   @ApiProduces('text/csv')
-  @Header('Content-Type', 'text/csv')
-  @ApiOperation({ summary: 'Export system fee revenue as CSV' })
-  exportRevenue(@Query() query: ReportingRangeQueryDto) {
-    return this.financialExportService.exportRevenueCsv(query);
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="revenue.csv"')
+  @Header('Transfer-Encoding', 'chunked')
+  @ApiOperation({ summary: 'Export system fee revenue as CSV (streamed)' })
+  exportRevenue(@Query() query: ReportingRangeQueryDto): StreamableFile {
+    const stream = this.financialExportService.streamRevenueCsv(query);
+    return new StreamableFile(stream, { type: 'text/csv; charset=utf-8' });
   }
 
   @Get('exports/reconciliation.csv')
   @ApiProduces('text/csv')
-  @Header('Content-Type', 'text/csv')
-  @ApiOperation({ summary: 'Export reconciliation drift report as CSV' })
-  exportReconciliation() {
-    return this.financialExportService.exportReconciliationCsv();
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="reconciliation.csv"')
+  @Header('Transfer-Encoding', 'chunked')
+  @ApiOperation({ summary: 'Export reconciliation drift report as CSV (streamed)' })
+  exportReconciliation(): StreamableFile {
+    const stream = this.financialExportService.streamReconciliationCsv();
+    return new StreamableFile(stream, { type: 'text/csv; charset=utf-8' });
   }
 }

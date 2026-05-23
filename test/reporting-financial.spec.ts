@@ -11,13 +11,16 @@ describe('Reporting financial invariants', () => {
     let pnlService: PnlService;
 
     const reportingRepository = {
-      sumFeeRevenue: jest.fn(),
+      sumFeeRevenueWithSource: jest.fn(),
       feeBreakdownByGroupType: jest.fn(),
     };
 
     beforeEach(async () => {
       jest.clearAllMocks();
-      reportingRepository.sumFeeRevenue.mockResolvedValue(new Prisma.Decimal('125.50'));
+      reportingRepository.sumFeeRevenueWithSource.mockResolvedValue({
+        total: new Prisma.Decimal('125.50'),
+        dataSource: 'ledger' as const,
+      });
       reportingRepository.feeBreakdownByGroupType.mockResolvedValue([
         { sourceType: 'TRANSFER', revenue: new Prisma.Decimal('80.25') },
         { sourceType: 'WITHDRAW', revenue: new Prisma.Decimal('45.25') },
@@ -46,7 +49,7 @@ describe('Reporting financial invariants', () => {
       expect(result.data.feeBreakdown.TRANSFER).toBe('80.25');
       expect(result.data.feeBreakdown.WITHDRAW).toBe('45.25');
       expect(result.data.feeBreakdown.DEPOSIT).toBe('0.00');
-      expect(reportingRepository.sumFeeRevenue).toHaveBeenCalledWith(
+      expect(reportingRepository.sumFeeRevenueWithSource).toHaveBeenCalledWith(
         expect.objectContaining({ currency: 'USD' }),
       );
     });

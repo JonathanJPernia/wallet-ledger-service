@@ -32,6 +32,24 @@ export class WalletReconciliationResultDto {
     description: 'Present when isConsistent is false',
   })
   driftCode?: string;
+
+  @ApiProperty({
+    enum: ['NONE', 'LOW', 'MEDIUM', 'CRITICAL'],
+    description: 'Drift classification (v2)',
+  })
+  severity?: string;
+
+  @ApiProperty({
+    enum: ['ledger', 'mv'],
+    description: 'Balance source used for ledger side',
+  })
+  dataSource?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'True when LOW drift was auto-repaired (RECONCILIATION_AUTO_REPAIR=true)',
+  })
+  autoRepaired?: boolean;
 }
 
 export class WalletReconciliationApiResponseDto extends ApiResponseDto<WalletReconciliationResultDto> {
@@ -48,6 +66,12 @@ export class DriftReportDto {
 
   @ApiProperty()
   scannedAt: string;
+
+  @ApiProperty({
+    required: false,
+    example: { LOW: 1, CRITICAL: 0 },
+  })
+  severitySummary?: Record<string, number>;
 }
 
 export class DriftReportApiResponseDto extends ApiResponseDto<DriftReportDto> {

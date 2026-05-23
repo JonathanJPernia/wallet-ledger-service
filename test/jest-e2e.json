@@ -1,8 +1,10 @@
 {
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
+  "setupFiles": ["<rootDir>/e2e/e2e-env.ts"],
   "testEnvironment": "node",
-  "testRegex": ".e2e-spec.ts$",
+  "testRegex": "(e2e/.*\\.spec\\.ts$|\\.e2e-spec\\.ts$)",
+  "testTimeout": 180000,
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   }

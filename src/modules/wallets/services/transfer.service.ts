@@ -31,6 +31,10 @@ import {
   failureReasonFromError,
   shouldPersistIdempotencyFailure,
 } from '../../../common/database/idempotency-failure';
+import { MetricsService } from '../../../common/observability/metrics.service';
+import { CircuitBreakerService } from '../../circuit-breaker/circuit-breaker.service';
+import { FinancialEventsService } from '../../events/services/financial-events.service';
+import { RiskScoringService } from '../../risk/services/risk-scoring.service';
 import {
   TransferRepository,
   type TransferRepositoryLogContext,
@@ -59,6 +63,10 @@ export class TransferService {
     private readonly transferRepository: TransferRepository,
     private readonly feesService: FeesService,
     private readonly systemFeeWalletService: SystemFeeWalletService,
+    private readonly riskScoringService: RiskScoringService,
+    private readonly financialEventsService: FinancialEventsService,
+    private readonly circuitBreaker: CircuitBreakerService,
+    private readonly metrics: MetricsService,
   ) {}
 
   async transfer(
@@ -93,6 +101,7 @@ export class TransferService {
           ...(body as TransferResponseDto),
           idempotencyKey: command.idempotencyKey,
         };
+        this.metrics.recordIdempotencyReplay(scope);
         this.logger.log({
           event: 'transfer.idempotency_replay',
           source: 'safe_committed_fast_path',
@@ -110,13 +119,34 @@ export class TransferService {
       });
     }
 
+    await this.circuitBreaker.assertWalletOperational(
+      command.fromWalletId,
+      'transfer',
+      command.correlationId,
+    );
+
+    await this.riskScoringService.assertWalletAllowed(
+      command.fromWalletId,
+      'transfer',
+    );
+
     try {
       const result = await this.transferRepository.runSerializable((tx) =>
         this.executeSerializableTransfer(tx, command, scope, logCtx),
       );
 
+      await this.circuitBreaker.recordSuccess('wallet', command.fromWalletId);
+      this.metrics.recordFinancialOperation('transfer', 'success');
       return buildApiResponse(result);
     } catch (error) {
+      if (this.circuitBreaker.isInfrastructureFailure(error)) {
+        await this.circuitBreaker.recordFailure(
+          'wallet',
+          command.fromWalletId,
+          command.correlationId,
+        );
+      }
+      this.metrics.recordFinancialOperation('transfer', 'failure');
       if (shouldPersistIdempotencyFailure(error)) {
         await this.transferRepository.recordIdempotencyFailureOutsideTx({
           scope,
@@ -408,6 +438,16 @@ export class TransferService {
       group.id,
       logCtx,
     );
+
+    await this.financialEventsService.recordTransferCompleted(tx, {
+      fromWalletId: from.id,
+      toWalletId: to.id,
+      transactionGroupId: group.id,
+      amount: command.amount,
+      currency: from.currency,
+      feeAmount: intent.feeAmount,
+      correlationId: command.correlationId,
+    });
 
     return {
       transferId: group.id,

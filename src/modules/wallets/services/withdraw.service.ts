@@ -34,6 +34,10 @@ import { FeesService } from '../../fees/fees.service';
 import { SystemFeeWalletService } from '../../fees/system-fee-wallet.service';
 import type { WithdrawBodyDto } from '../dto/withdraw-body.dto';
 import { WithdrawResponseDto } from '../dto/withdraw-response.dto';
+import { MetricsService } from '../../../common/observability/metrics.service';
+import { CircuitBreakerService } from '../../circuit-breaker/circuit-breaker.service';
+import { FinancialEventsService } from '../../events/services/financial-events.service';
+import { RiskScoringService } from '../../risk/services/risk-scoring.service';
 import {
   WithdrawRepository,
   type WithdrawRepositoryLogContext,
@@ -61,6 +65,10 @@ export class WithdrawService {
     private readonly withdrawRepository: WithdrawRepository,
     private readonly feesService: FeesService,
     private readonly systemFeeWalletService: SystemFeeWalletService,
+    private readonly riskScoringService: RiskScoringService,
+    private readonly financialEventsService: FinancialEventsService,
+    private readonly circuitBreaker: CircuitBreakerService,
+    private readonly metrics: MetricsService,
   ) {}
 
   async withdraw(
@@ -93,6 +101,7 @@ export class WithdrawService {
           ...(body as WithdrawResponseDto),
           idempotencyKey: command.idempotencyKey,
         };
+        this.metrics.recordIdempotencyReplay(scope);
         this.logger.log({
           event: 'withdraw.idempotency_replay',
           source: 'safe_committed_fast_path',
@@ -110,13 +119,34 @@ export class WithdrawService {
       });
     }
 
+    await this.circuitBreaker.assertWalletOperational(
+      command.walletId,
+      'withdraw',
+      command.correlationId,
+    );
+
+    await this.riskScoringService.assertWalletAllowed(
+      command.walletId,
+      'withdraw',
+    );
+
     try {
       const result = await this.withdrawRepository.runSerializable((tx) =>
         this.executeSerializableWithdraw(tx, command, scope, logCtx),
       );
 
+      await this.circuitBreaker.recordSuccess('wallet', command.walletId);
+      this.metrics.recordFinancialOperation('withdraw', 'success');
       return buildApiResponse(result);
     } catch (error) {
+      if (this.circuitBreaker.isInfrastructureFailure(error)) {
+        await this.circuitBreaker.recordFailure(
+          'wallet',
+          command.walletId,
+          command.correlationId,
+        );
+      }
+      this.metrics.recordFinancialOperation('withdraw', 'failure');
       logOperationFailed(
         this.logger,
         {
@@ -411,6 +441,15 @@ export class WithdrawService {
       group.id,
       logCtx,
     );
+
+    await this.financialEventsService.recordWithdrawCompleted(tx, {
+      walletId: wallet.id,
+      transactionGroupId: group.id,
+      amount: command.amount,
+      currency: wallet.currency,
+      feeAmount: intent.feeAmount,
+      correlationId: command.correlationId,
+    });
 
     return {
       withdrawId: group.id,

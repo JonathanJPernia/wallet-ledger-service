@@ -104,7 +104,7 @@ model IdempotencyKey {
 // amount SIEMPRE positivo; el signo lo define operationType
 // ---------------------------------------------------------------------------
 model LedgerEntry {
-  id String @id @default(uuid())
+  id String @default(uuid())
 
   walletId String
   wallet   Wallet @relation(fields: [walletId], references: [id])
@@ -125,6 +125,7 @@ model LedgerEntry {
 
   createdAt DateTime @default(now())
 
+  @@id([id, createdAt])
   @@index([walletId])
   @@index([transactionGroupId])
   @@index([operationType])
@@ -134,6 +135,92 @@ model LedgerEntry {
   @@index([walletId, createdAt])
   @@index([operationType, createdAt])
   @@map("ledger_entries")
+}
+
+model LedgerPartitionRegistry {
+  partitionName String   @id @map("partition_name")
+  rangeStart    DateTime @map("range_start")
+  rangeEnd      DateTime @map("range_end")
+  createdAt     DateTime @default(now()) @map("createdAt")
+
+  @@map("ledger_partition_registry")
+}
+
+model FinancialEventOutbox {
+  id                   String             @id @default(uuid())
+  type                 FinancialEventType
+  walletId             String?
+  counterpartyWalletId String?
+  transactionGroupId   String?
+  amount               Decimal?           @db.Decimal(18, 2)
+  currency             String?            @db.Char(3)
+  metadata             Json?
+  status               OutboxStatus       @default(PENDING)
+  attempts             Int                @default(0)
+  maxAttempts          Int                @default(5) @map("maxAttempts")
+  nextRetryAt          DateTime           @default(now()) @map("nextRetryAt")
+  lastError            String?            @map("lastError")
+  correlationId        String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([status, nextRetryAt])
+  @@index([transactionGroupId])
+  @@map("financial_event_outbox")
+}
+
+model FinancialEventDlq {
+  id        String   @id @default(uuid())
+  outboxId  String   @unique @map("outboxId")
+  type      FinancialEventType
+  payload   Json
+  lastError String   @map("lastError")
+  attempts  Int
+  failedAt  DateTime @default(now()) @map("failedAt")
+
+  @@map("financial_event_dlq")
+}
+
+model WalletCircuitBreaker {
+  scope         String
+  targetId      String       @map("targetId")
+  state         CircuitState @default(CLOSED)
+  failureCount  Int          @default(0) @map("failureCount")
+  successCount  Int          @default(0) @map("successCount")
+  openedAt      DateTime?    @map("openedAt")
+  lastFailureAt DateTime?    @map("lastFailureAt")
+  nextAttemptAt DateTime?    @map("nextAttemptAt")
+  updatedAt     DateTime     @updatedAt
+
+  @@id([scope, targetId])
+  @@map("wallet_circuit_breakers")
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  action        String
+  entityType    String   @map("entityType")
+  entityId      String?  @map("entityId")
+  actor         String?
+  correlationId String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([entityType, entityId])
+  @@index([correlationId])
+  @@map("audit_log")
+}
+
+model MvRefreshWatermark {
+  viewKey            String    @map("viewKey")
+  bucketDate         DateTime  @db.Date @map("bucketDate")
+  lastEntryCreatedAt DateTime? @map("lastEntryCreatedAt")
+  lastEntryId        String?   @map("lastEntryId")
+  refreshedAt        DateTime  @default(now()) @map("refreshedAt")
+
+  @@id([viewKey, bucketDate])
+  @@map("mv_refresh_watermarks")
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +241,71 @@ model FinancialSnapshot {
   @@unique([snapshotDate, currency])
   @@index([snapshotDate])
   @@map("financial_snapshots")
+}
+
+// ---------------------------------------------------------------------------
+// FinancialEvent — lightweight event stream (3.0 intelligence path)
+// ---------------------------------------------------------------------------
+model FinancialEvent {
+  id                 String             @id @default(uuid())
+  type               FinancialEventType
+  walletId           String?
+  counterpartyWalletId String?
+  transactionGroupId String?
+  amount             Decimal?           @db.Decimal(18, 2)
+  currency           String?            @db.Char(3)
+  metadata           Json?
+  createdAt          DateTime           @default(now())
+
+  @@index([type, createdAt])
+  @@index([walletId, createdAt])
+  @@index([transactionGroupId])
+  @@map("financial_events")
+}
+
+// ---------------------------------------------------------------------------
+// Materialized views — incremental refresh (reporting acceleration)
+// ---------------------------------------------------------------------------
+model DailyWalletBalance {
+  bucketDate     DateTime @db.Date @map("bucket_date")
+  walletId       String
+  currency       String   @db.Char(3)
+  ledgerBalance  Decimal  @db.Decimal(18, 2)
+  entryCount     Int      @default(0)
+  refreshedAt    DateTime @default(now()) @map("refreshed_at")
+
+  @@id([bucketDate, walletId])
+  @@index([walletId])
+  @@map("mv_daily_wallet_balance")
+}
+
+model DailyFeeRevenue {
+  bucketDate  DateTime @db.Date @map("bucket_date")
+  currency    String   @db.Char(3)
+  totalFees   Decimal  @db.Decimal(18, 2)
+  entryCount  Int      @default(0)
+  refreshedAt DateTime @default(now()) @map("refreshed_at")
+
+  @@id([bucketDate, currency])
+  @@map("mv_daily_fee_revenue")
+}
+
+model DailySystemVolume {
+  bucketDate   DateTime @db.Date @map("bucket_date")
+  currency     String   @db.Char(3)
+  totalVolume  Decimal  @db.Decimal(18, 2)
+  refreshedAt  DateTime @default(now()) @map("refreshed_at")
+
+  @@id([bucketDate, currency])
+  @@map("mv_daily_system_volume")
+}
+
+enum FinancialEventType {
+  DEPOSIT_COMPLETED
+  TRANSFER_COMPLETED
+  WITHDRAW_COMPLETED
+  FEE_APPLIED
+  WALLET_CREATED
 }
 
 enum WalletKind {
@@ -194,4 +346,17 @@ enum IdempotencyStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  DLQ
+}
+
+enum CircuitState {
+  CLOSED
+  OPEN
+  HALF_OPEN
 }
