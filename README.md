@@ -2,6 +2,30 @@
 
 API backend para un sistema financiero tipo wallet ledger (NestJS + PostgreSQL + Prisma).
 
+---
+
+## Demo en vivo
+
+<p align="center">
+  <a href="https://wallet-ledger-service-git-develop-jonathanjpr-s-projects.vercel.app/"><strong>ABRIR FRONTEND — Billetera Demo</strong></a>
+  <br /><br />
+  <a href="https://wallet-ledger-service-production.up.railway.app/api/docs"><strong>ABRIR SWAGGER — Documentación del API</strong></a>
+</p>
+
+| | Enlace directo |
+|---|----------------|
+| **Frontend (Vercel)** | https://wallet-ledger-service-git-develop-jonathanjpr-s-projects.vercel.app/ |
+| **Backend API (Railway)** | https://wallet-ledger-service-production.up.railway.app |
+| **Swagger UI** | https://wallet-ledger-service-production.up.railway.app/api/docs |
+| **Health** | https://wallet-ledger-service-production.up.railway.app/api/health |
+
+El **frontend** incluye tutorial paso a paso y pruebas de estrés contra el API en producción.  
+**Swagger** sirve para explorar y ejecutar endpoints (wallets, depósitos, transferencias, reconciliación, reporting, etc.).
+
+*Prueba hecha por Jonathan Pernía.*
+
+---
+
 ## Requisitos
 
 - Node.js 20+
@@ -24,21 +48,16 @@ npm run prisma:generate
 npm run start:dev
 ```
 
-Health check: `GET http://localhost:3000/api/health` (DB, uptime, memory, version, build SHA)  
-Swagger: `http://localhost:3000/api/docs`
+Local: health `http://localhost:3000/api/health` · Swagger `http://localhost:3000/api/docs`
 
-### Ops Console (frontend de pruebas)
-
-UI Next.js (tutorial + pruebas de estrés). Despliegue en **Vercel** con root `ops-console`.
+### Ops Console (código del frontend)
 
 ```bash
 cd ops-console && cp .env.example .env.local && npm install
-npm run ops:dev   # desde la raíz del backend, puerto 3001
+npm run ops:dev   # puerto 3001
 ```
 
-Documentación y deploy: [ops-console/README.md](./ops-console/README.md)
-
-En Railway: `CORS_ORIGINS` = URL de Vercel + `http://localhost:3001`.
+Deploy y variables: [ops-console/README.md](./ops-console/README.md) · En Railway: `CORS_ORIGINS` = URL de Vercel + `http://localhost:3001`.
 
 ## Scripts
 
