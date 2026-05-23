@@ -4,6 +4,8 @@ export interface AppConfig {
   name: string;
   env: string;
   port: number;
+  version: string;
+  buildSha: string | null;
 }
 
 export interface DatabaseConfig {
@@ -31,6 +33,12 @@ export default (): RootConfig => ({
     name: process.env.APP_NAME ?? 'wallet-ledger-service',
     env: process.env.NODE_ENV ?? 'development',
     port: parseInt(process.env.PORT ?? '3000', 10),
+    version: process.env.APP_VERSION ?? '0.0.1',
+    buildSha:
+      process.env.RAILWAY_GIT_COMMIT_SHA ??
+      process.env.BUILD_SHA ??
+      process.env.GIT_COMMIT_SHA ??
+      null,
   },
   [CONFIG_NAMESPACE.DATABASE]: {
     url: process.env.DATABASE_URL ?? '',

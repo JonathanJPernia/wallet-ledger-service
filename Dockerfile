@@ -17,13 +17,21 @@ EXPOSE 3000
 CMD ["npm", "run", "start:dev"]
 
 FROM base AS build
+ARG BUILD_SHA=local
+ARG APP_VERSION=0.0.1
+ENV BUILD_SHA=${BUILD_SHA}
+ENV APP_VERSION=${APP_VERSION}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 RUN npm prune --omit=dev
 
 FROM base AS production
+ARG BUILD_SHA=local
+ARG APP_VERSION=0.0.1
 ENV NODE_ENV=production
+ENV BUILD_SHA=${BUILD_SHA}
+ENV APP_VERSION=${APP_VERSION}
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json

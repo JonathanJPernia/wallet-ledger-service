@@ -8,11 +8,35 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
 
+function configureCors(app: Awaited<ReturnType<typeof NestFactory.create>>) {
+  const nodeEnv = process.env.NODE_ENV ?? 'development';
+  const origins =
+    process.env.CORS_ORIGINS?.split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean) ?? [];
+
+  if (origins.length > 0) {
+    app.enableCors({
+      origin: origins,
+      credentials: true,
+    });
+    return;
+  }
+
+  if (nodeEnv !== 'production') {
+    app.enableCors();
+  }
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.enableShutdownHooks();
+
   app.use(helmet());
   app.use(compression());
+
+  configureCors(app);
 
   app.setGlobalPrefix('api');
 

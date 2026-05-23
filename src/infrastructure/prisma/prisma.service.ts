@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 import { CONFIG_NAMESPACE } from '../../config/constants';
 import type { DatabaseConfig } from '../../config/configuration';
+import { resolvePrismaLogLevels } from './prisma-log.config';
 
 @Injectable()
 export class PrismaService
@@ -20,11 +21,14 @@ export class PrismaService
     const database = configService.get<DatabaseConfig>(
       CONFIG_NAMESPACE.DATABASE,
     )!;
+    const logLevels = resolvePrismaLogLevels();
     super({
       datasources: {
         db: { url: database.url },
       },
+      log: logLevels,
     });
+    this.logger.log(`Prisma log levels: ${logLevels.join(', ')}`);
   }
 
   async onModuleInit(): Promise<void> {

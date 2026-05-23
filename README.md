@@ -24,7 +24,7 @@ npm run prisma:generate
 npm run start:dev
 ```
 
-Health check: `GET http://localhost:3000/api/health`  
+Health check: `GET http://localhost:3000/api/health` (DB, uptime, memory, version, build SHA)  
 Swagger: `http://localhost:3000/api/docs`
 
 ## Scripts
@@ -64,6 +64,23 @@ src/
     idempotency/
 prisma/             # Schema y migraciones
 ```
+
+## Producción (Railway / Docker)
+
+| Variable | Uso |
+|----------|-----|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` en Railway |
+| `NODE_ENV` | `production` |
+| `PORT` | Lo asigna Railway (debe coincidir con Networking) |
+| `CORS_ORIGINS` | Orígenes del frontend, separados por coma |
+| `PRISMA_LOG_QUERY` | `true` al inicio; luego quitar (solo `warn,error`) |
+| `RAILWAY_GIT_COMMIT_SHA` | Auto en Railway → aparece en `/api/health` |
+
+**Migraciones:** solo `npm run deploy:migrate` (`prisma migrate deploy`). **No** uses `prisma db push` en producción.
+
+**Pre-deploy (Railway):** `npx prisma migrate deploy`  
+**Start:** `npm run start`  
+**Health probe:** `GET /api/health` (503 si la DB no responde)
 
 ## Docker
 

@@ -26,10 +26,12 @@ describe('Health (e2e)', () => {
       .get('/api/health')
       .expect(200)
       .expect((res) => {
-        expect(res.body).toEqual({
-          status: 'ok',
-          service: 'wallet-ledger-service',
-        });
+        expect(res.body.status).toBe('ok');
+        expect(res.body.service).toBe('wallet-ledger-service');
+        expect(res.body.database.status).toBe('up');
+        expect(res.body.version).toBeDefined();
+        expect(res.body.uptimeSeconds).toBeGreaterThanOrEqual(0);
+        expect(res.body.memory.heapUsedMb).toBeGreaterThan(0);
       });
   });
 });
