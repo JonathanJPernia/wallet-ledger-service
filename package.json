@@ -24,6 +24,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
     "test:e2e:financial": "TEST_DB_AUTO_RESET=true jest --config ./test/jest-final.json --runInBand test/e2e/financial-flow.spec.ts",
     "test:e2e:concurrency": "TEST_DB_AUTO_RESET=true jest --config ./test/jest-final.json --runInBand test/e2e/concurrency-caso-a.spec.ts test/e2e/concurrency-caso-b.spec.ts",
+    "test:e2e:risks": "TEST_DB_AUTO_RESET=true E2E_THROTTLE_LIMIT=100000 jest --config ./test/jest-final.json --runInBand test/e2e/duplicate-withdraw-same-key.spec.ts test/e2e/wallet-read-api.spec.ts",
     "test:audit": "TEST_DB_AUTO_RESET=true jest --config ./test/jest-final.json --runInBand test/audit/money-integrity.spec.ts",
     "test:reporting": "TEST_DB_AUTO_RESET=true jest --config ./test/jest-final.json --runInBand test/reporting/pnl.spec.ts",
     "test:final": "node test/scripts/run-final-suite.mjs",

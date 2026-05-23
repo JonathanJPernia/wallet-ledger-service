@@ -95,7 +95,8 @@ Deploy y variables: [ops-console/README.md](./ops-console/README.md) · En Railw
 | `npm run test:load` | Load tests (DB + flag `RUN_LOAD_TESTS`) |
 | `npm run test:all` | Unit + E2E |
 
-**Guía completa de tests:** [tests.md](./tests.md)
+**Guía completa de tests:** [tests.md](./tests.md)  
+**Estrategia por riesgos (qué cubre cada test y por qué):** [tests-risks.md](./tests-risks.md)
 
 ## Estructura
 

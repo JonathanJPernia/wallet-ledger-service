@@ -1,5 +1,7 @@
 # Guía de tests — Wallet Ledger Service
 
+> **Estrategia por riesgos:** qué riesgo cubre cada test y por qué existe → **[tests-risks.md](./tests-risks.md)** (checklist de evaluación, no cobertura %).
+
 Todos los tests asumen **PostgreSQL** accesible vía `DATABASE_URL` (ver `.env.example`). Levanta la DB antes de E2E o load:
 
 ```bash
@@ -18,6 +20,7 @@ npx prisma migrate deploy
 | `npm run test:e2e` | Todos los E2E (`test/e2e/*.spec.ts` + `test/*.e2e-spec.ts`) |
 | `npm run test:e2e:financial` | STEP 1 (reset DB + jest-final config) |
 | `npm run test:e2e:concurrency` | STEP 2 (idem) |
+| `npm run test:e2e:risks` | E2E focalizados R1/R16 + R15 (doble clic + GET saldo/movimientos) |
 | `npm run test:load` | Load tests (requieren `RUN_LOAD_TESTS=true` + DB) |
 | `npm run test:audit` | STEP 3 — money integrity (reset DB automático) |
 | `npm run test:reporting` | STEP 4 — P&L (reset DB + assert global al cierre) |

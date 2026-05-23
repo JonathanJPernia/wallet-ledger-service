@@ -56,6 +56,10 @@ async function runCasoAWithdrawBurst(
   return [first, ...replays];
 }
 
+/**
+ * RIESGO R1, R2 — Idempotency bajo carga (misma key, N replays).
+ * Ver tests-risks.md. Complemento pedagógico: duplicate-withdraw-same-key.spec.ts (R16).
+ */
 describe('E2E concurrency CASO A — misma idempotency key (75 paralelos)', () => {
   let harness: ConcurrencyHarness;
 

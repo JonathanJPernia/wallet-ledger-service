@@ -9,6 +9,11 @@ import { calculateFee, FeeableOperation } from '../../src/modules/fees/fee.polic
 import { maybeResetFinancialTestDatabase } from '../support/test-db-bootstrap';
 import { createE2eApp } from './setup-e2e-app';
 
+/**
+ * RIESGO R4–R6, R9, R11, R15 — Flujo financiero HTTP completo (smoke de producción).
+ * Matriz riesgo → test: tests-risks.md
+ */
+
 const DEPOSIT_AMOUNT = 100;
 const TRANSFER_AMOUNT = 30;
 const WITHDRAW_AMOUNT = 20;
